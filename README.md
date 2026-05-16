@@ -12,11 +12,9 @@
 
 We compile **B-RASP programs** (formal specifications of syntactic algorithms) into **structural causal models**, then use **Distributed Alignment Search (DAS)** to causally verify whether Transformers actually implement the prescribed intermediate computations. Short answer: *yes, they do* (IIA >= 0.95), and the variables emerge during training in exactly the order the causal model predicts.
 
-```
-Syntactic Constraint --> B-RASP Program --> Structural Causal Model --> Causal Verification
-   "subject-verb           SUBJ_NUM :=          SUBJ_NUM -> VERB_FORM      IIA = 0.98 / 0.96
-    agreement"           <_j[j<i, noun(j)]        (biconditional)           verified
-```
+<p align="center">
+  <img src="assets/pipeline.png" width="95%" alt="Pipeline: Syntactic constraint → B-RASP program → Causal model → Causal verification"/>
+</p>
 
 ---
 
@@ -85,18 +83,8 @@ brasp-verify/
 |   |-- run_ablations.py        # All ablations (Appendix D)
 |   |-- run_negative_controls.py
 |
-|-- figures/
-|   |-- gen_fig_pipeline.py     # Figure 1: Pipeline overview
-|   |-- gen_fig_perlayer.py     # Figure 2: Per-layer IIA
-|   |-- gen_fig_trajectory.py   # Figure 3: IIA during grokking
-|   |-- gen_fig_succinctness.py # Figure 4: Succinctness gap
-|   |-- gen_fig_comparison.py   # Figure 5: Trajectory comparison
-|   |-- gen_fig_scaling.py      # Figure 6: IIA scaling
-|
-|-- paper/
-    |-- emnlp26-id234.tex
-    |-- emnlp.bib
-    |-- figures/                # Compiled PDFs
+|-- assets/
+    |-- pipeline.png            # Pipeline overview figure
 ```
 
 ---
@@ -259,28 +247,6 @@ bash scripts/run_all.sh
 </details>
 
 ---
-
-## Figures
-
-Regenerate all figures:
-
-```bash
-cd figures
-python gen_fig_pipeline.py      # Figure 1: Pipeline
-python gen_fig_perlayer.py      # Figure 2: Per-layer IIA
-python gen_fig_trajectory.py    # Figure 3: Grokking trajectory
-python gen_fig_succinctness.py  # Figure 4: TF vs Mamba
-python gen_fig_comparison.py    # Figure 5: Progress measures
-python gen_fig_scaling.py       # Figure 6: Scaling
-```
-
-**Color scheme** (uniform across all figures):
-
-| Role | Color | Hex |
-|:---|:---|:---|
-| Atomic / Transformer | Blue | `#2166AC` |
-| Compositional / Mamba | Red | `#B2182B` |
-| LSTM | Green | `#4DAF4A` |
 
 ---
 
