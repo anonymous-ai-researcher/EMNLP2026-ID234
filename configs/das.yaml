@@ -1,0 +1,23 @@
+# DAS training configuration (Appendix C.3)
+das:
+  optimizer: adam
+  lr: 5.0e-3
+  weight_decay: 0.0
+  epochs: 100
+  batch_size: 256
+  val_split: 0.2
+  rotation: cayley  # Cayley parameterization for R in O(d)
+  rank_search: [1, 2, 4, 8]
+  layer_search: all
+  checkpoint: best_val_iia
+  token_position: consumed  # position where variable is determined
+  hook: after_block  # residual stream after full block
+
+negative_controls:
+  wrong_scm: true  # 12 off-diagonal pairings
+  random_init: true
+  shuffled_labels: true
+
+pretrained:
+  n_inits: 3  # 3 random DAS initializations
+  float_precision: float32
