@@ -1,4 +1,4 @@
-# From Specification to Causal Verification: Do Transformers Implement Formally Prescribed Algorithms for Syntax?
+## From Specification to Causal Verification: Do Transformers Implement Formally Prescribed Algorithms for Syntax?
 
 > **Anonymous submission to EMNLP 2026 (ARR May 2026, Paper #234)**
 
