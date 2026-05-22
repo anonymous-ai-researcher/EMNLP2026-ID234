@@ -6,5 +6,3 @@ data/
 results/
 wandb/
 *.egg-info/
-dist/
-build/

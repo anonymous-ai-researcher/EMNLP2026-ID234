@@ -4,17 +4,19 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.1%2B-red.svg)](https://pytorch.org/)
 [![CUDA](https://img.shields.io/badge/CUDA-12.1%2B-green.svg)](https://developer.nvidia.com/cuda-toolkit)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Venue](https://img.shields.io/badge/EMNLP-2026-purple.svg)]()
+[![arXiv](https://img.shields.io/badge/arXiv-coming_soon-b31b1b.svg)]()
 
 > **From Specification to Causal Verification: Do Transformers Implement Formally Prescribed Algorithms for Syntax?**
 > *Anonymous submission to EMNLP 2026 (ARR May 2026)*
 
-## TL;DR
-
-We compile **B-RASP programs** (formal specifications of syntactic algorithms) into **structural causal models**, then use **Distributed Alignment Search (DAS)** to causally verify whether Transformers actually implement the prescribed intermediate computations. Short answer: *yes, they do* (IIA >= 0.95), and the variables emerge during training in exactly the order the causal model predicts.
-
 <p align="center">
   <img src="assets/pipeline.png" width="95%" alt="Pipeline: Syntactic constraint → B-RASP program → Causal model → Causal verification"/>
 </p>
+
+## TL;DR
+
+We compile **B-RASP programs** (formal specifications of syntactic algorithms) into **structural causal models**, then use **Distributed Alignment Search (DAS)** to causally verify whether Transformers actually implement the prescribed intermediate computations. Short answer: *yes, they do* (IIA >= 0.95), and the variables emerge during training in exactly the order the causal model predicts.
 
 ---
 
@@ -41,14 +43,14 @@ brasp-verify/
 |
 |-- configs/
 |   |-- transformer.yaml        # d=128, H=4, 2 layers, GELU, AdamW
-|   |-- lstm.yaml               # Matched params (~1.08M)
-|   |-- mamba.yaml              # Matched params (~1.15M), d_state=16
+|   |-- lstm.yaml               # Same d=128 (0.28M params)
+|   |-- mamba.yaml              # Same d=128, d_state=16, expand=2 (0.25M params)
 |   |-- das.yaml                # Cayley rotation, rank in {1,2,4,8}
 |
 |-- src/
 |   |-- data/
 |   |   |-- cfg_generator.py    # CFG sentence generation (4 phenomena, d=0..8)
-|   |   |-- lexicon.py          # 135-token vocabulary
+|   |   |-- lexicon.py          # 135-token vocabulary (25 noun pairs, 20 verb pairs)
 |   |   |-- blimp_loader.py     # BLiMP paradigm loader (23 paradigms)
 |   |   |-- das_pairs.py        # Counterfactual (b, s) pair construction
 |   |-- models/
@@ -94,7 +96,6 @@ brasp-verify/
 ```bash
 git clone https://github.com/anonymous/brasp-verify.git
 cd brasp-verify
-
 conda create -n brasp-verify python=3.10
 conda activate brasp-verify
 pip install -r requirements.txt
@@ -106,17 +107,17 @@ pip install -r requirements.txt
 
 ### From-Scratch Training Data (Procedurally Generated)
 
-No download needed. Data is generated via context-free grammars:
+No download needed:
 
 ```bash
 python scripts/train_from_scratch.py --stage data --seed 42
 ```
 
-This creates ~50K train / 5K val / 10K test sentences per phenomenon, with attractor distances 0-8 and disjoint lexical items across splits.
+Creates ~50K train / 5K val / 10K test sentences per phenomenon, with attractor distances 0-8 and disjoint lexical items across splits.
 
 ### BLiMP (Pre-trained Evaluation)
 
-We use 23 paradigms from [BLiMP](https://github.com/alexwarstadt/blimp) (Warstadt et al., 2020):
+23 paradigms from [BLiMP](https://github.com/alexwarstadt/blimp) (Warstadt et al., 2020):
 
 ```bash
 python src/data/blimp_loader.py --output data/blimp/
@@ -148,43 +149,18 @@ All loaded in `float32` (pre-trained, not instruct-tuned).
 
 ## Quick Start
 
-### Train From-Scratch Models
-
 ```bash
-# Single run
+# Train single model
 python scripts/train_from_scratch.py \
     --config configs/transformer.yaml \
     --phenomenon agreement --seed 1
 
-# All models x phenomena x seeds
-for arch in transformer lstm mamba; do
-    for seed in 1 2 3 4 5; do
-        for phen in agreement npi binding concord; do
-            python scripts/train_from_scratch.py \
-                --config configs/${arch}.yaml \
-                --phenomenon $phen --seed $seed
-        done
-    done
-done
-```
-
-### Run DAS Verification
-
-```bash
-# From-scratch (rank search {1,2,4,8})
+# DAS verification
 python scripts/run_das.py \
     --model_dir checkpoints/transformer/ \
     --config configs/das.yaml
 
-# Pre-trained (3 DAS initializations)
-python scripts/run_das_pretrained.py \
-    --model_name EleutherAI/pythia-1.4b \
-    --config configs/das.yaml --n_inits 3
-```
-
-### Reproduce Everything (~420 GPU-hours)
-
-```bash
+# Reproduce everything (~420 GPU-hours)
 bash scripts/run_all.sh
 ```
 
@@ -195,13 +171,15 @@ bash scripts/run_all.sh
 <details>
 <summary><b>From-Scratch Models (Appendix C.1)</b></summary>
 
+All three architectures share hidden dimension d=128. We match the representation dimension (which determines the DAS search space) rather than the parameter count, since DAS operates in R^d and a shared d ensures geometric comparability of IIA across architectures. Width scaling (Figure 4b) confirms the architectural gap persists even when Mamba is given 122x more parameters.
+
 | Parameter | Transformer | LSTM | Mamba |
 |:---|:---:|:---:|:---:|
 | Layers | 2 | 2 | 2 |
 | Hidden dim d | 128 | 128 | 128 |
 | Heads H | 4 | -- | -- |
 | State dim | -- | -- | 16 |
-| Parameters | ~1.05M | ~1.08M | ~1.15M |
+| Parameters | ~0.42M | ~0.28M | ~0.25M |
 | Activation | GELU | tanh | SiLU |
 | Positional enc. | Learned | -- | -- |
 | Init | Xavier uniform | Xavier uniform | Xavier uniform |
@@ -212,6 +190,7 @@ bash scripts/run_all.sh
 | Schedule | Cosine | Cosine | Cosine |
 | Max steps | 50,000 | 50,000 | 50,000 |
 | Batch size | 64 | 64 | 64 |
+| Max seq length | 30 | 30 | 30 |
 | Seeds | 5 | 5 | 5 |
 
 </details>
@@ -248,15 +227,13 @@ bash scripts/run_all.sh
 
 ---
 
----
-
 ## Compute
 
 | Component | GPU-hours |
 |:---|---:|
 | From-scratch training (3 arch x 4 phen x 5 seeds) | 120 |
 | DAS from-scratch (8 var x 8 cfg x 5 seeds) | 40 |
-| DAS pre-trained (8 var x 96 cfg x 3 runs) | 200 |
+| DAS pre-trained (8 var x 5 models x 3 runs) | 200 |
 | SAE (2 layers x 4 phen x 5 seeds) | 20 |
 | Evaluation + ablations | 40 |
 | **Total** | **~420** |
