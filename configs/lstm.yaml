@@ -1,14 +1,13 @@
-# LSTM baseline (matched parameters ~1.08M)
 model:
   type: lstm
   n_layers: 2
   d_model: 128
-  d_ff: 512
   activation: tanh
-  max_seq_len: 25
+  max_seq_len: 30
   vocab_size: 135
   dropout: 0.0
   init: xavier_uniform
+  # Total parameters: ~0.28M
 
 training:
   optimizer: adamw
@@ -27,6 +26,4 @@ data:
   train_size: 50000
   val_size: 5000
   test_size: 10000
-  balanced: true
-  disjoint_lexicon: true
   seed: 42
