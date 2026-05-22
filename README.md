@@ -5,7 +5,6 @@
 [![CUDA](https://img.shields.io/badge/CUDA-12.1%2B-green.svg)](https://developer.nvidia.com/cuda-toolkit)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Venue](https://img.shields.io/badge/EMNLP-2026-purple.svg)]()
-[![arXiv](https://img.shields.io/badge/arXiv-coming_soon-b31b1b.svg)]()
 
 > **From Specification to Causal Verification: Do Transformers Implement Formally Prescribed Algorithms for Syntax?**
 > *Anonymous submission to EMNLP 2026 (ARR May 2026)*
