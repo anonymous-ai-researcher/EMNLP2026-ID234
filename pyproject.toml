@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spec2verify"
+version = "1.0.0"
+description = "Formal specifications as causal hypotheses for syntactic dependencies in neural networks"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = ["torch", "transformers", "tokenizers", "numpy", "scipy", "scikit-learn", "datasets", "matplotlib"]
+
+[tool.setuptools.packages.find]
+include = ["spec2verify*"]

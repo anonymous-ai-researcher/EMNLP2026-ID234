@@ -1,246 +1,147 @@
-# BRASP-VERIFY 🔬
+# spec2verify
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.1%2B-red.svg)](https://pytorch.org/)
-[![CUDA](https://img.shields.io/badge/CUDA-12.1%2B-green.svg)](https://developer.nvidia.com/cuda-toolkit)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Venue](https://img.shields.io/badge/EMNLP-2026-purple.svg)]()
+Code for **"Look Up, Then Combine: Formal Specifications as Causal Hypotheses for
+Syntactic Dependencies in Transformers"**.
 
-> **From Specification to Causal Verification: Do Transformers Implement Formally Prescribed Algorithms for Syntax?**
-> *Anonymous submission to EMNLP 2026 (ARR May 2026)*
+A syntactic rule is written as a Boolean RASP (B-RASP) program, compiled into a
+structural causal model (SCM), and tested against trained networks with
+interchange interventions found by Distributed Alignment Search (DAS).  Each
+program has an *atomic* variable (one attention operation, a lookup) and a
+*compositional* variable (a pointwise Boolean function, a combination).  The
+repository covers subject–verb agreement, NPI licensing, reflexive binding and
+determiner–noun concord, plus German verb-final clauses, the decisive English
+constructions and the controlled Boolean tasks.
 
-<p align="center">
-  <img src="assets/pipeline.png" width="95%" alt="Pipeline: Syntactic constraint → B-RASP program → Causal model → Causal verification"/>
-</p>
-
-## TL;DR
-
-We compile **B-RASP programs** (formal specifications of syntactic algorithms) into **structural causal models**, then use **Distributed Alignment Search (DAS)** to causally verify whether Transformers actually implement the prescribed intermediate computations. Short answer: *yes, they do* (IIA >= 0.95), and the variables emerge during training in exactly the order the causal model predicts.
-
----
-
-## Key Results
-
-| Finding | Table/Fig | Highlight |
-|:---|:---:|:---|
-| From-scratch TF achieves IIA >= 0.95 on all 8 variables | Table 3 | Near-perfect causal alignment |
-| Pre-trained models (160M-3B) reach IIA 0.82-0.95 | Table 3 | Alignment scales with model size |
-| Variables emerge in causal-dependency order during grokking | Figure 3 | Atomic before compositional |
-| SAE features fail on compositional variables; DAS succeeds | Table 4 | Structural limit of dictionary learning |
-| Transformer-Mamba succinctness gap on agreement | Figure 4 | TF flat >=95%; Mamba drops to 53% |
-| All negative controls return chance-level IIA (0.48-0.51) | Table 3 | High IIA is not an artifact |
-
----
-
-## Repository Structure
-
-```
-brasp-verify/
-|-- README.md
-|-- requirements.txt
-|-- LICENSE
-|
-|-- configs/
-|   |-- transformer.yaml        # d=128, H=4, 2 layers, GELU, AdamW
-|   |-- lstm.yaml               # Same d=128 (0.28M params)
-|   |-- mamba.yaml              # Same d=128, d_state=16, expand=2 (0.25M params)
-|   |-- das.yaml                # Cayley rotation, rank in {1,2,4,8}
-|
-|-- src/
-|   |-- data/
-|   |   |-- cfg_generator.py    # CFG sentence generation (4 phenomena, d=0..8)
-|   |   |-- lexicon.py          # 135-token vocabulary (25 noun pairs, 20 verb pairs)
-|   |   |-- blimp_loader.py     # BLiMP paradigm loader (23 paradigms)
-|   |   |-- das_pairs.py        # Counterfactual (b, s) pair construction
-|   |-- models/
-|   |   |-- transformer.py      # 2-layer TF with residual-stream hooks
-|   |   |-- lstm.py             # LSTM baseline
-|   |   |-- mamba.py            # Mamba (selective SSM) baseline
-|   |   |-- pretrained.py       # HuggingFace loader (Pythia, Llama)
-|   |-- das/
-|   |   |-- das_trainer.py      # DAS optimization loop
-|   |   |-- rotation.py         # Cayley transform: R in O(d)
-|   |   |-- iia.py              # IIA computation (Eq. 1)
-|   |   |-- negative_controls.py
-|   |-- sae/
-|   |   |-- sae_model.py        # TopK SAE (E=8, K=32)
-|   |   |-- sae_trainer.py      # SAE training
-|   |   |-- alignment.py        # Feature <-> variable alignment
-|   |-- evaluation/
-|   |   |-- behavioral.py       # Minimal-pair accuracy
-|   |   |-- blimp_eval.py       # BLiMP log-prob evaluation
-|   |   |-- progress_measure.py # Per-step IIA trajectory
-|   |-- utils/
-|       |-- brasp.py            # B-RASP program definitions
-|       |-- scm.py              # SCM definitions (4 phenomena + alternatives)
-|       |-- stats.py            # Paired t-test, bootstrap, Bonferroni
-|
-|-- scripts/
-|   |-- run_all.sh              # One command to rule them all (~420 GPU-h)
-|   |-- train_from_scratch.py   # Train TF/LSTM/Mamba (5 seeds x 4 phen)
-|   |-- run_das.py              # DAS on from-scratch models
-|   |-- run_das_pretrained.py   # DAS on Pythia/Llama
-|   |-- run_sae.py              # SAE analysis
-|   |-- run_ablations.py        # All ablations (Appendix D)
-|   |-- run_negative_controls.py
-|
-|-- assets/
-    |-- pipeline.png            # Pipeline overview figure
-```
-
----
+No data files are included: every dataset is generated deterministically from
+the templates and seeds in `spec2verify/data`, and BLiMP and the pre-trained
+checkpoints are downloaded from their public sources.
 
 ## Installation
 
 ```bash
-git clone https://github.com/anonymous/brasp-verify.git
-cd brasp-verify
-conda create -n brasp-verify python=3.10
-conda activate brasp-verify
+python -m venv .venv && source .venv/bin/activate      # Python 3.10
 pip install -r requirements.txt
+pip install -e .
+# optional, CUDA only: the fused Mamba-1 kernel (otherwise a plain PyTorch scan is used)
+pip install mamba-ssm==1.2.2 causal-conv1d==1.2.0.post2 && export SPEC2VERIFY_MAMBA_SSM=1
+python -m pytest -q tests                                 # 23 tests, about one minute on CPU
 ```
 
----
+The experiments were run with Python 3.10.13, PyTorch 2.1.2 (CUDA 12.1),
+`transformers` 4.44.2, `tokenizers` 0.19.1, NumPy 1.26.4, SciPy 1.11.4 and
+scikit-learn 1.3.2 on NVIDIA A100 GPUs (40 GB), with TF32 and cuDNN autotuning
+disabled.  The compute budget is about 6,480 A100 GPU hours in total.
 
-## Data
+## Repository layout
 
-### From-Scratch Training Data (Procedurally Generated)
-
-No download needed:
-
-```bash
-python scripts/train_from_scratch.py --stage data --seed 42
+```
+spec2verify/
+  brasp/        B-RASP semantics (core.py), the programs of Section 3 and Appendix A
+                (programs.py), and their compilation into SCMs with interchange
+                interventions (scm.py)
+  data/         lexica (Table 5), vocabularies (135/137/139/167/40/66 tokens), CFG
+                templates, the 40 natural-text templates per phenomenon for the
+                pre-trained models, distribution shifts, dataset assembly with
+                sentence-family splits, and counterfactual pairs (Appendix B)
+  models/       2-layer Transformer, LSTM and Mamba-1 classifiers whose parameter
+                counts equal the formulas of Appendix F.7; training (Table 8)
+  alignment/    DAS with the Cayley parameterization, rank/layer search, negative
+                controls; joint alignment (F.1); unconstrained maps (E.1); probes (E.5)
+  sae/          TopK, JumpReLU and Gated SAEs; interchange scoring, permutation null,
+                DAS in the span of selected decoder directions (C.5, D.5, D.10, F.5)
+  pretrained/   Hugging Face models (C.2, C.4), BLiMP (B.2, E.3), head ablation and
+                attention mass (F.8)
+  analysis/     statistical tests (C.7), parameter-growth fits (F.7), failure
+                prediction (F.4), crossing steps and excluded loss (E.2, E.7)
+  experiments/  one runner per table, figure or appendix analysis
+  figures.py    Figures 2-6 from the result files
+tests/          unit tests (semantics, data, models, alignment, pre-trained interface)
 ```
 
-Creates ~50K train / 5K val / 10K test sentences per phenomenon, with attractor distances 0-8 and disjoint lexical items across splits.
+## Reproducing the paper
 
-### BLiMP (Pre-trained Evaluation)
+All commands write JSON results to `results/` (set `SPEC2VERIFY_RESULTS`) and
+cache checkpoints in `runs/` (set `SPEC2VERIFY_RUNS`).  `--quick` runs a small
+end-to-end version of any command (fewer sentences, steps and DAS epochs);
+`--seeds 1103` restricts the five model seeds.
 
-23 paradigms from [BLiMP](https://github.com/alexwarstadt/blimp) (Warstadt et al., 2020):
+| Paper | Command |
+|---|---|
+| Table 2, 2-layer models; Table 18 (wrong SCMs); Appendix C.3 variance decomposition | `python -m spec2verify table2-scratch --arch {transformer,lstm,mamba}` |
+| Table 2, pre-trained models; Tables 12, 14 and 43; Figure 2 data; rank stability (D.1) | `python -m spec2verify table2-pretrained --model pythia-1.4b` (and the other four English models) |
+| Wrong-SCM control for the pre-trained models | `python -m spec2verify wrong-scm-pretrained --model ...` |
+| Section 5.2, Table 3, Tables 32–34 (2-layer models) | `structure-english`, `structure-german` |
+| Section 5.2, pre-trained models | `structure-english-pretrained --model ...`, `structure-german-pretrained --model ...` |
+| Figure 3, Table 29 (crossing steps), Table 35 (training objectives) | `trajectories --regime {label_only,aux,label_input}` |
+| Figure 5 (excluded loss) | `excluded-loss` (after `trajectories`) |
+| Table 4, Tables 17, 22–24, 37–39 (SAEs) | `sae`, `boolean` |
+| Table 13 (rank ablation), Table 40 (rank by layer), three-input NPI (D.1) | `rank-ablation`, `rank-by-layer`, `three-input` |
+| Figure 4, Tables 41–42 | `arch-tune`, `arch-sweep --arch ...`, `arch-growth --arch ...`, `mamba-probe` |
+| Table 15 (IIA by distance), Table 16 (alternative SCMs) | `distance-alternatives` |
+| Table 21 (transfer) | `transfer` |
+| Table 20 (separation suite) | `concord-stress` |
+| Table 25 (constrained vs. unconstrained) | `unconstrained` |
+| Table 27 (probing) | `probing` |
+| Tables 6, 26, 30 (BLiMP) | `blimp --model ...` |
+| Table 31 (joint alignment) | `joint`, `joint-pretrained --model ...` |
+| Table 36 (failure prediction) | `failure --model pythia-1.4b` (after `table2-pretrained`) |
+| Attention analysis (F.8) | `attention --model ...` |
+| Figures 2–6 | `figures` (or `figures --figure 3`) |
 
-```bash
-python src/data/blimp_loader.py --output data/blimp/
-```
+Model short names: `pythia-160m`, `pythia-410m`, `pythia-1.4b`, `pythia-2.8b`,
+`pythia-6.9b`, `llama-3.2-1b`, `llama-3.2-3b`, `llama-3.1-8b`,
+`llama-3.1-8b-instruct`, `qwen2.5-1.5b`, `qwen2.5-3b`, `qwen2.5-7b`,
+`gemma-2-2b` (Table 9; Pythia at revision `step143000`).  The Llama and Gemma
+checkpoints require accepting their licenses on Hugging Face.
 
-| Phenomenon | Paradigms | Pairs |
-|:---|:---:|:---:|
-| Agreement | 6 | ~6,000 |
-| NPI licensing | 7 | ~7,000 |
-| Binding | 2 | ~2,000 |
-| Concord | 8 | ~8,000 |
-| **Total** | **23** | **~23,000** |
+## Protocol summary
 
-Source: [Warstadt et al. (2020)](https://aclanthology.org/2020.tacl-1.25/), CC-BY license.
+**Data (Appendix B).**  Agreement 50,000/5,000/10,000 sentences
+(train/validation/test); NPI, binding and concord 40,000/4,000/8,000 each;
+balanced labels; agreement and binding spread evenly over structural loads 0–8.
+Generation seeds: 42 (agreement, binding, concord), 20270723 (scope-sensitive
+NPI), 20270722 (separation suite).  Splits are made by sentence family, so no
+sentence or minimal pair occurs in two splits; when a stratum has fewer distinct
+families than its quota, records are drawn with replacement inside the split.
+DAS pairs come from fresh families (≥ 5,000 pairs per load level, split 60/20/20
+by family: 3,000/1,000/1,000), with balanced counterfactual labels computed by the
+SCM.  Half of the pairs edit the critical token (the variable changes); the other
+half use a neutral edit that keeps the variable and the output, so an intervention
+without effect scores 0.5 (`experiments/scratch.py: UNCHANGED_FRACTION`).  Pre-trained models use 6,000/2,000/2,000 pairs per variable from 40
+templates and keep only bases and sources the model handles correctly.
 
-### Pre-trained Models (HuggingFace)
+**Models (Appendix C.1).**  Two layers, width 128; causal pre-LN Transformer
+(4 heads, FFN 512, GELU, learned positions, Xavier-uniform weights, N(0, 0.02²)
+embeddings); unidirectional LSTM; Mamba-1 (state 16, expansion 2, convolution 4,
+dt rank 8, pre-RMSNorm).  AdamW (lr 1e-3, weight decay 1.0 on all parameters),
+500 warm-up steps and cosine decay, batch 64, 50,000 steps, gradient clip 1.0,
+no dropout, checkpoints every 500 steps; model seeds 1103, 2207, 3319, 4421, 5531.
 
-| Model | HuggingFace ID | Params | License |
-|:---|:---|:---:|:---|
-| Pythia-160M | `EleutherAI/pythia-160m` | 160M | Apache 2.0 |
-| Pythia-410M | `EleutherAI/pythia-410m` | 410M | Apache 2.0 |
-| Pythia-1.4B | `EleutherAI/pythia-1.4b` | 1.4B | Apache 2.0 |
-| Llama-3.2-1B | `meta-llama/Llama-3.2-1B` | 1.3B | Llama 3.2 |
-| Llama-3.2-3B | `meta-llama/Llama-3.2-3B` | 3.2B | Llama 3.2 |
+**DAS (Appendix C.3).**  R = R0 (I − Ω)(I + Ω)⁻¹, Ω = A − Aᵀ; Adam lr 5e-3, 100
+epochs, batch 256, best development epoch; ranks {1, 2, 4, 8}; all block outputs
+of the pre-trained models (4L configurations per variable), fixed sites in the
+2-layer models (first-block output for atomic variables, the residual stream
+entering the last MLP for compositional ones); interventions at the position
+where the variable is consumed.  DAS seeds 701, 809, 907, 1013, 1109 (the first
+three for the from-scratch models).  Controls: wrong SCM, random initialization
+(step 0, or the pre-trained architecture rebuilt from its configuration with
+seeds 1103–5531), shuffled counterfactual labels; competitors and controls reuse
+the selected site and rank and refit only R.
 
-All loaded in `float32` (pre-trained, not instruct-tuned).
+**Pre-trained read-out.**  The language model is read where it predicts the
+critical word (verb, NPI, reflexive or noun): the intervention position is the
+last token before that word (the last subword of a named word when an analysis
+asks for it, such as the German noun for `can_nom`), and the network's discrete
+output compares the total log-probability of the word's two candidate forms;
+critical words with more than three subwords are filtered.  Behavioral accuracy
+compares sentence log-probabilities (one BOS for Llama and Gemma, none for Pythia
+and Qwen, no length normalization, ties broken by pair-ID parity).
 
----
-
-## Quick Start
-
-```bash
-# Train single model
-python scripts/train_from_scratch.py \
-    --config configs/transformer.yaml \
-    --phenomenon agreement --seed 1
-
-# DAS verification
-python scripts/run_das.py \
-    --model_dir checkpoints/transformer/ \
-    --config configs/das.yaml
-
-# Reproduce everything (~420 GPU-hours)
-bash scripts/run_all.sh
-```
-
----
-
-## Hyperparameters
-
-<details>
-<summary><b>From-Scratch Models (Appendix C.1)</b></summary>
-
-All three architectures share hidden dimension d=128. We match the representation dimension (which determines the DAS search space) rather than the parameter count, since DAS operates in R^d and a shared d ensures geometric comparability of IIA across architectures. Width scaling (Figure 4b) confirms the architectural gap persists even when Mamba is given 122x more parameters.
-
-| Parameter | Transformer | LSTM | Mamba |
-|:---|:---:|:---:|:---:|
-| Layers | 2 | 2 | 2 |
-| Hidden dim d | 128 | 128 | 128 |
-| Heads H | 4 | -- | -- |
-| State dim | -- | -- | 16 |
-| Parameters | ~0.42M | ~0.28M | ~0.25M |
-| Activation | GELU | tanh | SiLU |
-| Positional enc. | Learned | -- | -- |
-| Init | Xavier uniform | Xavier uniform | Xavier uniform |
-| Optimizer | AdamW | AdamW | AdamW |
-| LR | 1e-3 | 1e-3 | 1e-3 |
-| Weight decay | 1.0 | 1.0 | 1.0 |
-| Warmup | 500 steps | 500 steps | 500 steps |
-| Schedule | Cosine | Cosine | Cosine |
-| Max steps | 50,000 | 50,000 | 50,000 |
-| Batch size | 64 | 64 | 64 |
-| Max seq length | 30 | 30 | 30 |
-| Seeds | 5 | 5 | 5 |
-
-</details>
-
-<details>
-<summary><b>DAS Configuration (Appendix C.3)</b></summary>
-
-| Parameter | Value |
-|:---|:---|
-| Rotation | Cayley transform (R in O(d)) |
-| Optimizer | Adam (lr=5e-3, no weight decay) |
-| Epochs | 100 |
-| Batch size | 256 |
-| Validation | 20% held out |
-| Rank search | {1, 2, 4, 8} |
-| Checkpoint | Best validation IIA |
-| Hook | After full Transformer block |
-
-</details>
-
-<details>
-<summary><b>SAE Configuration (Appendix C.5)</b></summary>
-
-| Parameter | Value |
-|:---|:---|
-| Architecture | TopK |
-| Dict. size | 1024 (8x expansion) |
-| K | 32 |
-| Training steps | 50,000 |
-| Recon. MSE | <= 0.005 |
-| Dead features | < 5% |
-
-</details>
-
----
-
-## Compute
-
-| Component | GPU-hours |
-|:---|---:|
-| From-scratch training (3 arch x 4 phen x 5 seeds) | 120 |
-| DAS from-scratch (8 var x 8 cfg x 5 seeds) | 40 |
-| DAS pre-trained (8 var x 5 models x 3 runs) | 200 |
-| SAE (2 layers x 4 phen x 5 seeds) | 20 |
-| Evaluation + ablations | 40 |
-| **Total** | **~420** |
-
-All experiments on **NVIDIA A100 GPUs (40GB)** with PyTorch 2.1 and CUDA 12.1.
-
----
+**SAEs (Appendix C.5).**  One SAE per seed, phenomenon, site, architecture and
+expansion; 50,000 updates of batch 4,096; TopK K = 32; JumpReLU and Gated with
+sparsity coefficients 1e-4 and 3e-4 at 8× (chosen to match mean L0 = 32);
+interchange scores keep the base reconstruction error.
 
 ## License
 
-Released under the [MIT License](LICENSE) for research purposes.
+MIT.
